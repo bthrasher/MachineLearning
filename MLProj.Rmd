@@ -1,0 +1,83 @@
+
+Machine Learning Course Project
+=============
+
+## An Exercise in Human Activity Recognition
+### by Bridget Thrasher
+
+***
+
+## Executive Summary
+This project creates a model for use in predicting human activity based on 52 types of accelerometer measurements. These measurements consist of five classes (sitting-down, standing-up, standing, walking, and sitting, labeled "A", "B", "C", "D", and "E") collected over eight hours of activities performed by four healthy subjects. (See http://groupware.les.inf.puc-rio.br/har for more information.) The out-of-sample error is estimated as approximately 1%, and the model was able to correctly predict 20 out of the 20 samples in the provided test data set.  
+
+
+## Data Processing
+The original data set contains many columns of mostly NA or blank cells as well as columns with various metadata. Once the file was uploaded, these columns were removed:
+
+``` {r}
+dat <- read.csv("pml-training.csv",stringsAsFactors=TRUE)
+dat <- dat[,8:160]
+dat <- dat[,which(dat[1,]!="NA"&dat[1,]!="")]
+```
+
+For purposes of cross validation, the cleaned data were then split into training and testing groups:
+
+``` {r warning=FALSE,message=FALSE}
+library(caret)
+set.seed(1234)
+inTrain <- createDataPartition(y=dat$classe,p=0.7,list=FALSE)
+training <- dat[inTrain,]
+testing <- dat[-inTrain,]
+```
+
+## Model Development
+
+The prediction of interest involves statistical classification, so a decision tree algorithm was used in model development. In particular, the C5.0 algorithm was employed, which uses normalized information gain as the criterion for node splitting. C5.0 also supports boosting, which reduces bias in the tree and makes it more accurate. (See http://en.wikipedia.org/wiki/C4.5_algorithm for more information.)
+
+Both the standard decision tree model and its decomposed rule-based model were created with 10 boosting iterations:
+
+``` {r warning=FALSE}
+library(C50)
+treeModel <- C5.0(x=training[,-53],y=training[,53],trials=10)
+ruleModel <- C5.0(x=training[,-53],y=training[,53],trials=10,rules=TRUE)
+```
+
+## Results
+
+Both models performed exceptionally well when used to predict classifications in the testing data:
+
+``` {r}
+treePred <- predict(treeModel,newdata=testing[,-53])
+```
+``` {r echo=FALSE}
+table(treePred,testing$classe)
+treeMiss <- sum(as.numeric(treePred)-as.numeric(testing[,53])!=0)
+treeOSE <- round(treeMiss/nrow(testing)*100.,2)
+```
+Total number of misses: `r treeMiss`  
+Out-of-sample error: `r treeOSE`%  
+
+``` {r}
+rulePred <- predict(ruleModel,newdata=testing[,-53])
+```
+``` {r echo=FALSE}
+table(rulePred,testing$classe)
+ruleMiss <- sum(as.numeric(rulePred)-as.numeric(testing[,53])!=0)
+ruleOSE <- round(ruleMiss/nrow(testing)*100.,2)
+```
+Total number of misses: `r ruleMiss`  
+Out-of-sample error: `r ruleOSE`%  
+
+
+## Summary
+
+The rule-based version of the model was then chosen to predict the classifications of the 20 test samples provided. Each sample was correctly predicted, for a success rate of 100% in this case.
+
+``` {r}
+test_dat <- read.csv("pml-testing.csv",stringsAsFactors=TRUE)
+test_dat <- test_dat[,c(colnames(dat)[-53])]
+testPred <- predict(ruleModel,newdata=test_dat)
+```
+
+
+
